@@ -1,0 +1,1 @@
+{"extends":"./tsconfig.json","compilerOptions":{"paths":{"@/*":["./*"],"@runtime":["./lib/server/node-runtime.ts"]}},"exclude":["node_modules","examples","dist",".vinext",".wrangler",".sites-runtime","outputs","work"]}

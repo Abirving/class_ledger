@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "buildCommand": "npm run db:migrate && npm run build:postgres",
+  "functions": {
+    "app/api/**": {
+      "maxDuration": 60
+    }
+  }
+}

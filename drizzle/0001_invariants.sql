@@ -1,0 +1,14 @@
+CREATE TRIGGER score_scope BEFORE INSERT ON score WHEN NOT (EXISTS(SELECT 1 FROM enrollment e JOIN section s ON s.id=e.section_id JOIN term t ON t.id=NEW.term_id JOIN offering o ON o.id=NEW.offering_id WHERE e.id=NEW.enrollment_id AND e.year_id=t.year_id AND s.grade_id=o.grade_id AND NEW.value<=o.maximum)) BEGIN SELECT RAISE(ABORT,'score_scope'); END;
+CREATE TRIGGER assignment_scope BEFORE INSERT ON assignment WHEN NOT (EXISTS(SELECT 1 FROM section s JOIN offering o ON o.grade_id=s.grade_id WHERE s.id=NEW.section_id AND o.id=NEW.offering_id)) BEGIN SELECT RAISE(ABORT,'assignment_scope'); END;
+CREATE TRIGGER result_run_update_immutable BEFORE UPDATE ON result_run WHEN OLD.status='APPROVED' BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER result_run_delete_immutable BEFORE DELETE ON result_run WHEN OLD.status='APPROVED' BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER student_result_update_immutable BEFORE UPDATE ON student_result WHEN EXISTS(SELECT 1 FROM result_run r WHERE r.id=OLD.run_id AND r.status='APPROVED') BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER student_result_delete_immutable BEFORE DELETE ON student_result WHEN EXISTS(SELECT 1 FROM result_run r WHERE r.id=OLD.run_id AND r.status='APPROVED') BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER result_mark_update_immutable BEFORE UPDATE ON result_mark WHEN EXISTS(SELECT 1 FROM student_result s JOIN result_run r ON r.id=s.run_id WHERE s.id=OLD.student_result_id AND r.status='APPROVED') BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER result_mark_delete_immutable BEFORE DELETE ON result_mark WHEN EXISTS(SELECT 1 FROM student_result s JOIN result_run r ON r.id=s.run_id WHERE s.id=OLD.student_result_id AND r.status='APPROVED') BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER report_template_update_immutable BEFORE UPDATE ON report_template WHEN OLD.status='APPROVED' BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER report_template_delete_immutable BEFORE DELETE ON report_template WHEN OLD.status='APPROVED' BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER audit_event_update_immutable BEFORE UPDATE ON audit_event WHEN 1=1 BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER audit_event_delete_immutable BEFORE DELETE ON audit_event WHEN 1=1 BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER exception_resolution_update_immutable BEFORE UPDATE ON exception_resolution WHEN 1=1 BEGIN SELECT RAISE(ABORT,'immutable_record'); END;
+CREATE TRIGGER exception_resolution_delete_immutable BEFORE DELETE ON exception_resolution WHEN 1=1 BEGIN SELECT RAISE(ABORT,'immutable_record'); END;

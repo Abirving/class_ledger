@@ -1,0 +1,19 @@
+{
+  "date": "2026-11-06",
+  "unit_integration_tests": 47,
+  "database": "PGlite PostgreSQL engine with real migrations",
+  "pdf": {
+    "A": {
+      "pages": 20,
+      "ethiopic": true,
+      "long_name": false
+    },
+    "B": {
+      "pages": 30,
+      "ethiopic": false,
+      "long_name": true
+    }
+  },
+  "browser_e2e": "not executed",
+  "network_postgresql_redis": "not executed"
+}

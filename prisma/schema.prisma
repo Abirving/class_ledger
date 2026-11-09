@@ -1,0 +1,363 @@
+generator client {
+ provider = "prisma-client-js"
+}
+datasource db {
+ provider = "postgresql"
+ url = env("DATABASE_URL")
+}
+
+model school {
+  id String @id
+  name String
+  timezone String
+  address String
+  settings String
+  revision Int
+}
+
+model users {
+  id String @id
+  name String
+  email String
+  password_hash String?
+  roles String
+  active Int
+  created_at String
+  session_user_id_back session[] @relation("session_user_id")
+  assignment_teacher_id_back assignment[] @relation("assignment_teacher_id")
+  import_batch_actor_id_back import_batch[] @relation("import_batch_actor_id")
+  score_actor_id_back score[] @relation("score_actor_id")
+  exception_resolution_actor_id_back exception_resolution[] @relation("exception_resolution_actor_id")
+  result_run_approved_by_back result_run[] @relation("result_run_approved_by")
+  result_run_created_by_back result_run[] @relation("result_run_created_by")
+  report_template_created_by_back report_template[] @relation("report_template_created_by")
+  report_batch_created_by_back report_batch[] @relation("report_batch_created_by")
+  audit_event_actor_id_back audit_event[] @relation("audit_event_actor_id")
+}
+
+model session {
+  id String @id
+  user_id String
+  expires_at String
+  user_id_ref users @relation("session_user_id", fields: [user_id], references: [id])
+}
+
+model academic_year {
+  id String @id
+  label String
+  term_year_id_back term[] @relation("term_year_id")
+  enrollment_year_id_back enrollment[] @relation("enrollment_year_id")
+}
+
+model term {
+  id String @id
+  year_id String
+  label String
+  year_id_ref academic_year @relation("term_year_id", fields: [year_id], references: [id])
+  assignment_term_id_back assignment[] @relation("assignment_term_id")
+  scope_state_term_id_back scope_state[] @relation("scope_state_term_id")
+  score_term_id_back score[] @relation("score_term_id")
+  score_exception_term_id_back score_exception[] @relation("score_exception_term_id")
+  result_run_term_id_back result_run[] @relation("result_run_term_id")
+}
+
+model grade {
+  id String @id
+  label String
+  sort_order Int
+  section_grade_id_back section[] @relation("section_grade_id")
+  offering_grade_id_back offering[] @relation("offering_grade_id")
+}
+
+model section {
+  id String @id
+  grade_id String
+  label String
+  active Int
+  grade_id_ref grade @relation("section_grade_id", fields: [grade_id], references: [id])
+  enrollment_section_id_back enrollment[] @relation("enrollment_section_id")
+  assignment_section_id_back assignment[] @relation("assignment_section_id")
+  scope_state_section_id_back scope_state[] @relation("scope_state_section_id")
+  result_run_section_id_back result_run[] @relation("result_run_section_id")
+}
+
+model student {
+  id String @id
+  code String
+  full_name String
+  active Int
+  enrollment_student_id_back enrollment[] @relation("enrollment_student_id")
+}
+
+model enrollment {
+  id String @id
+  student_id String
+  year_id String
+  section_id String
+  active Int
+  section_id_ref section @relation("enrollment_section_id", fields: [section_id], references: [id])
+  year_id_ref academic_year @relation("enrollment_year_id", fields: [year_id], references: [id])
+  student_id_ref student @relation("enrollment_student_id", fields: [student_id], references: [id])
+  import_row_enrollment_id_back import_row[] @relation("import_row_enrollment_id")
+  score_enrollment_id_back score[] @relation("score_enrollment_id")
+  score_exception_enrollment_id_back score_exception[] @relation("score_exception_enrollment_id")
+  student_result_enrollment_id_back student_result[] @relation("student_result_enrollment_id")
+}
+
+model subject {
+  id String @id
+  name String
+  code String
+  offering_subject_id_back offering[] @relation("offering_subject_id")
+}
+
+model offering {
+  id String @id
+  grade_id String
+  subject_id String
+  maximum Decimal @db.Decimal(20, 6)
+  weight Decimal @db.Decimal(20, 6)
+  required Int
+  sort_order Int
+  subject_id_ref subject @relation("offering_subject_id", fields: [subject_id], references: [id])
+  grade_id_ref grade @relation("offering_grade_id", fields: [grade_id], references: [id])
+  assignment_offering_id_back assignment[] @relation("assignment_offering_id")
+  score_offering_id_back score[] @relation("score_offering_id")
+  score_exception_offering_id_back score_exception[] @relation("score_exception_offering_id")
+  result_mark_offering_id_back result_mark[] @relation("result_mark_offering_id")
+}
+
+model assignment {
+  id String @id
+  teacher_id String
+  term_id String
+  section_id String
+  offering_id String
+  offering_id_ref offering @relation("assignment_offering_id", fields: [offering_id], references: [id])
+  section_id_ref section @relation("assignment_section_id", fields: [section_id], references: [id])
+  term_id_ref term @relation("assignment_term_id", fields: [term_id], references: [id])
+  teacher_id_ref users @relation("assignment_teacher_id", fields: [teacher_id], references: [id])
+  import_batch_assignment_id_back import_batch[] @relation("import_batch_assignment_id")
+  score_exception_assignment_id_back score_exception[] @relation("score_exception_assignment_id")
+}
+
+model scope_state {
+  id String @id
+  term_id String
+  section_id String
+  revision Int
+  section_id_ref section @relation("scope_state_section_id", fields: [section_id], references: [id])
+  term_id_ref term @relation("scope_state_term_id", fields: [term_id], references: [id])
+}
+
+model import_batch {
+  id String @id
+  assignment_id String?
+  kind String
+  actor_id String
+  source_key String
+  file_hash String
+  filename String
+  status String
+  payload String
+  scope_revision Int
+  correction_reason String
+  created_at String
+  committed_at String?
+  actor_id_ref users @relation("import_batch_actor_id", fields: [actor_id], references: [id])
+  assignment_id_ref assignment? @relation("import_batch_assignment_id", fields: [assignment_id], references: [id])
+  import_row_batch_id_back import_row[] @relation("import_row_batch_id")
+}
+
+model import_row {
+  id String @id
+  batch_id String
+  line_number Int
+  enrollment_id String?
+  raw_cells String
+  value Decimal? @db.Decimal(20, 6)
+  reason String?
+  errors String
+  warnings String
+  enrollment_id_ref enrollment? @relation("import_row_enrollment_id", fields: [enrollment_id], references: [id])
+  batch_id_ref import_batch @relation("import_row_batch_id", fields: [batch_id], references: [id])
+  score_source_row_id_back score[] @relation("score_source_row_id")
+  score_exception_source_row_id_back score_exception[] @relation("score_exception_source_row_id")
+}
+
+model score {
+  id String @id
+  enrollment_id String
+  term_id String
+  offering_id String
+  value Decimal @db.Decimal(20, 6)
+  source_row_id String?
+  actor_id String
+  revision Int
+  effective Int
+  created_at String
+  actor_id_ref users @relation("score_actor_id", fields: [actor_id], references: [id])
+  source_row_id_ref import_row? @relation("score_source_row_id", fields: [source_row_id], references: [id])
+  offering_id_ref offering @relation("score_offering_id", fields: [offering_id], references: [id])
+  term_id_ref term @relation("score_term_id", fields: [term_id], references: [id])
+  enrollment_id_ref enrollment @relation("score_enrollment_id", fields: [enrollment_id], references: [id])
+  result_mark_source_score_id_back result_mark[] @relation("result_mark_source_score_id")
+}
+
+model score_exception {
+  id String @id
+  enrollment_id String
+  term_id String
+  offering_id String
+  assignment_id String?
+  source_row_id String?
+  kind String
+  reason String
+  remark String
+  status String
+  revision Int
+  created_at String
+  resolved_at String?
+  source_row_id_ref import_row? @relation("score_exception_source_row_id", fields: [source_row_id], references: [id])
+  assignment_id_ref assignment? @relation("score_exception_assignment_id", fields: [assignment_id], references: [id])
+  offering_id_ref offering @relation("score_exception_offering_id", fields: [offering_id], references: [id])
+  term_id_ref term @relation("score_exception_term_id", fields: [term_id], references: [id])
+  enrollment_id_ref enrollment @relation("score_exception_enrollment_id", fields: [enrollment_id], references: [id])
+  exception_resolution_exception_id_back exception_resolution[] @relation("exception_resolution_exception_id")
+}
+
+model exception_resolution {
+  id String @id
+  exception_id String
+  action String
+  value Decimal? @db.Decimal(20, 6)
+  justification String
+  actor_id String
+  created_at String
+  actor_id_ref users @relation("exception_resolution_actor_id", fields: [actor_id], references: [id])
+  exception_id_ref score_exception @relation("exception_resolution_exception_id", fields: [exception_id], references: [id])
+}
+
+model result_run {
+  id String @id
+  term_id String
+  section_id String
+  revision Int
+  scope_revision Int
+  school_revision Int
+  status String
+  fingerprint String
+  policy String
+  created_by String
+  approved_by String?
+  approved_at String?
+  created_at String
+  supersedes_id String?
+  supersedes_id_ref result_run? @relation("result_run_supersedes_id", fields: [supersedes_id], references: [id])
+  approved_by_ref users? @relation("result_run_approved_by", fields: [approved_by], references: [id])
+  created_by_ref users @relation("result_run_created_by", fields: [created_by], references: [id])
+  section_id_ref section @relation("result_run_section_id", fields: [section_id], references: [id])
+  term_id_ref term @relation("result_run_term_id", fields: [term_id], references: [id])
+  result_run_supersedes_id_back result_run[] @relation("result_run_supersedes_id")
+  student_result_run_id_back student_result[] @relation("student_result_run_id")
+  report_file_run_id_back report_file[] @relation("report_file_run_id")
+}
+
+model student_result {
+  id String @id
+  run_id String
+  enrollment_id String
+  student_code String
+  full_name String
+  total Decimal @db.Decimal(20, 6)
+  max_total Decimal @db.Decimal(20, 6)
+  average Decimal @db.Decimal(20, 6)
+  section_rank Int
+  grade_rank Int?
+  enrollment_id_ref enrollment @relation("student_result_enrollment_id", fields: [enrollment_id], references: [id])
+  run_id_ref result_run @relation("student_result_run_id", fields: [run_id], references: [id])
+  result_mark_student_result_id_back result_mark[] @relation("result_mark_student_result_id")
+}
+
+model result_mark {
+  id String @id
+  student_result_id String
+  offering_id String
+  subject_name String
+  value Decimal @db.Decimal(20, 6)
+  maximum Decimal @db.Decimal(20, 6)
+  weight Decimal @db.Decimal(20, 6)
+  source_score_id String
+  source_score_id_ref score @relation("result_mark_source_score_id", fields: [source_score_id], references: [id])
+  offering_id_ref offering @relation("result_mark_offering_id", fields: [offering_id], references: [id])
+  student_result_id_ref student_result @relation("result_mark_student_result_id", fields: [student_result_id], references: [id])
+}
+
+model report_template {
+  id String @id
+  family_id String
+  name String
+  version Int
+  file_key String?
+  file_type String
+  page_width Decimal @db.Decimal(20, 6)
+  page_height Decimal @db.Decimal(20, 6)
+  fields String
+  status String
+  created_by String
+  created_at String
+  created_by_ref users @relation("report_template_created_by", fields: [created_by], references: [id])
+  report_batch_template_id_back report_batch[] @relation("report_batch_template_id")
+}
+
+model report_batch {
+  id String @id
+  template_id String
+  run_ids String
+  status String
+  options String
+  progress Int
+  total Int
+  error String?
+  created_by String
+  created_at String
+  completed_at String?
+  lease_until String?
+  zip_key String?
+  created_by_ref users @relation("report_batch_created_by", fields: [created_by], references: [id])
+  template_id_ref report_template @relation("report_batch_template_id", fields: [template_id], references: [id])
+  report_file_batch_id_back report_file[] @relation("report_file_batch_id")
+}
+
+model report_file {
+  id String @id
+  batch_id String
+  run_id String
+  storage_key String
+  filename String
+  page_count Int
+  checksum String
+  run_id_ref result_run @relation("report_file_run_id", fields: [run_id], references: [id])
+  batch_id_ref report_batch @relation("report_file_batch_id", fields: [batch_id], references: [id])
+}
+
+model audit_event {
+  id String @id
+  actor_id String?
+  action String
+  entity_type String
+  entity_id String
+  detail String
+  created_at String
+  actor_id_ref users? @relation("audit_event_actor_id", fields: [actor_id], references: [id])
+}
+
+model transaction_guard {
+  id String @id
+  ok Int
+}
+
+model rate_limit {
+  id String @id
+  count Int
+}
