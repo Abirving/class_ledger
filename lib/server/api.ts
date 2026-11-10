@@ -18,7 +18,6 @@ import {
   audit,
   Statement,
 } from "./contracts";
-import { setup } from "./seed";
 import {
   assignment,
   coverage,
@@ -226,40 +225,11 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
       });
     }
     const school = await one(rt.db, "SELECT * FROM school");
-    if (route === "setup" && method === "POST" && !school) {
-      const input = await body(
-        req,
-        z.object({
-          name: str,
-          username: z.string().trim().min(3).max(100),
-          password: z.string().min(12).max(128),
-        }),
-      );
-      await limit(rt, "setup", 20);
-      const taken = await one(rt.db, "SELECT id FROM users WHERE LOWER(email)=?", [
-        input.username.toLowerCase(),
-      ]);
-      demand(!taken, "USERNAME_TAKEN", "That username is already in use.");
-      await setup(
-        rt,
-        {
-          id: uid(),
-          name: "School Administrator",
-          email: input.username.toLowerCase(),
-          roles: ["SYSTEM_ADMIN", "APPROVER"],
-        },
-        input.name,
-        false,
-        await bcrypt.hash(input.password, 12),
-      );
-      return respond({ ok: true });
-    }
     const actor = await getActor(rt, req);
     if (route === "bootstrap") {
       return respond({
         school: school ? { ...school, settings: parse(school.settings) } : null,
         actor,
-        canSetup: !school,
         localAuth: !!rt.localAuth,
       });
     }

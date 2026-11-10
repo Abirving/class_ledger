@@ -116,7 +116,6 @@ export default function App() {
   if (!b.actor)
     return (
       <Welcome
-        data={b}
         reload={() => {
           bootstrap.reload();
           lookup.reload();
@@ -303,24 +302,17 @@ export default function App() {
     </div>
   );
 }
-function Welcome({ data, reload }: { data: any; reload: () => void }) {
+function Welcome({ reload }: { reload: () => void }) {
   const [portal, setPortal] = useState<"admin" | "teacher">("admin"),
     [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
-    [name, setName] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   async function submit() {
     setBusy(true);
     setError("");
     try {
-      await api(
-        data.canSetup ? "setup" : "auth/login",
-        "POST",
-        data.canSetup
-          ? { name, username, password }
-          : { username, password, portal },
-      );
+      await api("auth/login", "POST", { username, password, portal });
       reload();
     } catch (e: any) {
       setError(e.message);
@@ -359,116 +351,65 @@ function Welcome({ data, reload }: { data: any; reload: () => void }) {
       <div className="login-form">
         <div className="login-form-inner">
           <div className="eyebrow">WELCOME TO CLASSLEDGER</div>
-          <h1>
-            {data.canSetup ? "Set up your school" : "Sign in to ClassLedger"}
-          </h1>
+          <h1>Sign in to ClassLedger</h1>
           <p>
-            {data.canSetup
-              ? "Create the administrator account that controls this workspace."
-              : "Choose the section that matches your role, then enter your username and password."}
+            Choose the section that matches your role, then enter your username
+            and password.
           </p>
           {error && <Notice>{error}</Notice>}
-          {data.canSetup ? (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                submit();
-              }}
-            >
-              <Field label="School name">
-                <input
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </Field>
-              <Field
-                label="Administrator username"
-                hint="Used to sign in to the administrator section."
-              >
-                <input
-                  required
-                  autoComplete="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
-              </Field>
-              <Field
-                label="Administrator password"
-                hint="At least 12 characters."
-              >
-                <input
-                  required
-                  type="password"
-                  minLength={12}
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </Field>
-              <Button busy={busy} type="submit">
-                Create school workspace
-              </Button>
-              <p className="small" style={{ marginTop: 20 }}>
-                Teacher accounts are created automatically for each subject. You
-                can review or change them any time under People &amp; roles.
-              </p>
-            </form>
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                submit();
-              }}
-            >
-              <div className="login-tabs" role="tablist">
-                {(["admin", "teacher"] as const).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    role="tab"
-                    aria-selected={portal === p}
-                    className={portal === p ? "active" : ""}
-                    onClick={() => {
-                      setPortal(p);
-                      setError("");
-                    }}
-                  >
-                    {p === "admin" ? "Administrator" : "Teacher"}
-                  </button>
-                ))}
-              </div>
-              <p className="small">
-                {admin
-                  ? "For the school administrator, registrar and approvers."
-                  : "For subject teachers who upload marks."}
-              </p>
-              <Field label="Username">
-                <input
-                  required
-                  autoComplete="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                />
-              </Field>
-              <Field label="Password">
-                <input
-                  required
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </Field>
-              <Button busy={busy} type="submit">
-                Sign in as {admin ? "administrator" : "teacher"}
-              </Button>
-              <p className="small" style={{ marginTop: 20 }}>
-                Need access or a password reset? Contact your school
-                administrator.
-              </p>
-            </form>
-          )}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit();
+            }}
+          >
+            <div className="login-tabs" role="tablist">
+              {(["admin", "teacher"] as const).map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  role="tab"
+                  aria-selected={portal === p}
+                  className={portal === p ? "active" : ""}
+                  onClick={() => {
+                    setPortal(p);
+                    setError("");
+                  }}
+                >
+                  {p === "admin" ? "Administrator" : "Teacher"}
+                </button>
+              ))}
+            </div>
+            <p className="small">
+              {admin
+                ? "For the school administrator, registrar and approvers."
+                : "For subject teachers who upload marks."}
+            </p>
+            <Field label="Username">
+              <input
+                required
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </Field>
+            <Field label="Password">
+              <input
+                required
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
+            <Button busy={busy} type="submit">
+              Sign in as {admin ? "administrator" : "teacher"}
+            </Button>
+            <p className="small" style={{ marginTop: 20 }}>
+              Need access or a password reset? Contact your school
+              administrator.
+            </p>
+          </form>
         </div>
       </div>
     </div>

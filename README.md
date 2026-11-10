@@ -13,12 +13,14 @@ Start with [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for verified res
 | Variable | Purpose |
 |---|---|
 | `DATABASE_URL` | PostgreSQL connection string (required) |
-| `SCHOOL_NAME` | Default school name before first-run setup (optional) |
+| `ADMIN_USERNAME` | First administrator username, created when the database is empty (required) |
+| `ADMIN_PASSWORD` | First administrator password, at least 12 characters (required) |
+| `SCHOOL_NAME` | School name used when the database is first seeded (optional) |
 | `REDIS_URL` | Only for a separate Redis-backed report worker (optional) |
 
-4. Deploy. The build runs the SQL migrations and then `next build` with the PostgreSQL adapter.
+4. Deploy. The build runs the SQL migrations, seeds the school and accounts, then runs `next build` with the PostgreSQL adapter. Seeding only happens when the database is empty, so later deploys leave your data untouched.
 
-On first visit the app shows a one-time **Set up your school** screen where you create the administrator username and password — no seeding step is required. Files and report PDFs are stored in PostgreSQL, so no extra storage service is needed, and Redis is optional (without it, report batches render on demand).
+Sign in straight away with the administrator username and password from `ADMIN_USERNAME` / `ADMIN_PASSWORD` — there is no first-run setup screen. Files and report PDFs are stored in PostgreSQL, so no extra storage service is needed, and Redis is optional (without it, report batches render on demand).
 
 ## Run locally
 
@@ -30,14 +32,15 @@ corepack prepare pnpm@11.25.0 --activate
 pnpm install --frozen-lockfile
 cp .env.example .env
 npm run db:migrate
+npm run db:seed
 npm run dev:postgres
 ```
 
-Open http://localhost:3000 and complete the one-time school setup screen. `npm run db:seed` is optional; it configures a school without the setup screen using `ADMIN_USERNAME` and `ADMIN_PASSWORD`.
+Set `ADMIN_USERNAME`, `ADMIN_PASSWORD` (12+ characters) and `SCHOOL_NAME` in `.env` before seeding, then open http://localhost:3000 and sign in.
 
 ## Accounts
 
-- **Administrator** — the username and password you create on the setup screen. Described as `admin` in the deployment steps above.
+- **Administrator** — the account created from `ADMIN_USERNAME` / `ADMIN_PASSWORD` when the database is first seeded.
 - **Teachers** — one account per subject is created automatically when the school is set up:
 
 | Subject | Username | Initial password |
