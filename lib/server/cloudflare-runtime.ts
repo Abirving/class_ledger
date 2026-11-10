@@ -27,6 +27,9 @@ export async function runtime(request: Request): Promise<Runtime> {
         const x = await e.BUCKET.get(k);
         return x ? new Uint8Array(await x.arrayBuffer()) : null;
       },
+      delete: async (k) => {
+        await e.BUCKET.delete(k);
+      },
     },
     waitUntil,
     font: async () =>

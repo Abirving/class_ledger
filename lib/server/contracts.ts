@@ -7,6 +7,7 @@ export interface Database {
 export interface Storage {
   put(key: string, data: Uint8Array, type?: string): Promise<void>;
   get(key: string): Promise<Uint8Array | null>;
+  delete?(key: string): Promise<void>;
 }
 export interface Runtime {
   db: Database;

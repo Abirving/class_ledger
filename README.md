@@ -15,10 +15,12 @@ Start with [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for verified res
 | `DATABASE_URL` | PostgreSQL connection string (required) |
 | `ADMIN_USERNAME` | First administrator username, created when the database is empty (required) |
 | `ADMIN_PASSWORD` | First administrator password, at least 12 characters (required) |
+| `TEACHER_MATH_PASSWORD` / `TEACHER_ENG_PASSWORD` / `TEACHER_SCI_PASSWORD` | Default subject-teacher passwords, used only when seeding an empty database (required for a first seed) |
 | `SCHOOL_NAME` | School name used when the database is first seeded (optional) |
+| `APP_URL` | Canonical public URL, used to validate the `Origin` header on writes (optional) |
 | `REDIS_URL` | Only for a separate Redis-backed report worker (optional) |
 
-4. Deploy. The build runs the SQL migrations, seeds the school and accounts, then runs `next build` with the PostgreSQL adapter. Seeding only happens when the database is empty, so later deploys leave your data untouched.
+4. Deploy. The build only compiles the app (`npm run build:postgres`). Apply migrations and the first seed as a separate **release step** with `npm run db:release` — either before deploying, from a CI job (see `.github/workflows/release.yml`), or locally against the production database. Seeding only happens when the database is empty, so re-running it leaves your data untouched. Keeping it out of the build means a cold or unreachable database can never block a deployment.
 
 Sign in straight away with the administrator username and password from `ADMIN_USERNAME` / `ADMIN_PASSWORD` — there is no first-run setup screen. Files and report PDFs are stored in PostgreSQL, so no extra storage service is needed, and Redis is optional (without it, report batches render on demand).
 
@@ -31,12 +33,11 @@ corepack enable
 corepack prepare pnpm@11.25.0 --activate
 pnpm install --frozen-lockfile
 cp .env.example .env
-npm run db:migrate
-npm run db:seed
+npm run db:release
 npm run dev:postgres
 ```
 
-Set `ADMIN_USERNAME`, `ADMIN_PASSWORD` (12+ characters) and `SCHOOL_NAME` in `.env` before seeding, then open http://localhost:3000 and sign in.
+Set `ADMIN_USERNAME`, `ADMIN_PASSWORD` (12+ characters), the `TEACHER_*_PASSWORD` values and `SCHOOL_NAME` in `.env` before seeding, then open http://localhost:3000 and sign in.
 
 ## Accounts
 

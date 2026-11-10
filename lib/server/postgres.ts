@@ -1,9 +1,89 @@
 import { Pool } from "pg";
 import { sql } from "./contracts";
 import type { Database, Statement, Storage } from "./contracts";
+// Rewrites positional `?` placeholders into PostgreSQL's `$n` form. A plain
+// global replace would also rewrite question marks that live inside string
+// literals, quoted identifiers, comments or dollar-quoted blocks, which would
+// silently shift every following parameter. This scans the statement instead
+// and only numbers placeholders found in real SQL code.
 export const postgresSql = (q: string) => {
-  let n = 0;
-  return q.replace(/\?/g, () => "$" + ++n);
+  let n = 0,
+    out = "",
+    i = 0;
+  while (i < q.length) {
+    const c = q[i];
+    if (c === "'" || c === '"') {
+      const quote = c;
+      out += c;
+      i++;
+      while (i < q.length) {
+        const d = q[i];
+        if (d === "\\") {
+          out += d + (q[i + 1] ?? "");
+          i += 2;
+          continue;
+        }
+        if (d === quote) {
+          if (q[i + 1] === quote) {
+            out += d + d;
+            i += 2;
+            continue;
+          }
+          out += d;
+          i++;
+          break;
+        }
+        out += d;
+        i++;
+      }
+      continue;
+    }
+    if (c === "-" && q[i + 1] === "-") {
+      const end = q.indexOf("\n", i);
+      if (end < 0) {
+        out += q.slice(i);
+        break;
+      }
+      out += q.slice(i, end);
+      i = end;
+      continue;
+    }
+    if (c === "/" && q[i + 1] === "*") {
+      let depth = 1,
+        j = i + 2;
+      while (j < q.length && depth > 0) {
+        if (q[j] === "/" && q[j + 1] === "*") {
+          depth++;
+          j += 2;
+        } else if (q[j] === "*" && q[j + 1] === "/") {
+          depth--;
+          j += 2;
+        } else j++;
+      }
+      out += q.slice(i, j);
+      i = j;
+      continue;
+    }
+    if (c === "$") {
+      const tag = /^\$[A-Za-z_]*\$/.exec(q.slice(i))?.[0];
+      if (tag) {
+        const end = q.indexOf(tag, i + tag.length);
+        if (end >= 0) {
+          out += q.slice(i, end + tag.length);
+          i = end + tag.length;
+          continue;
+        }
+      }
+    }
+    if (c === "?") {
+      out += "$" + ++n;
+      i++;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
 };
 export class Postgres implements Database {
   constructor(public pool: Pool) {}
@@ -45,5 +125,8 @@ export class PostgresStorage implements Storage {
       [key],
     );
     return rows.length ? new Uint8Array(rows[0].data) : null;
+  }
+  async delete(key: string) {
+    await this.db.batch([sql("DELETE FROM object_blob WHERE key=?", key)]);
   }
 }

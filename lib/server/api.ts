@@ -37,7 +37,7 @@ import {
   scoreValue,
   csv,
 } from "../domain/academic";
-import { processBatch, runJob, render } from "./pdf";
+import { runJob, render } from "./pdf";
 const str = z.string().trim().min(1).max(200),
   id = z.string().min(1).max(100),
   reason = z.string().trim().min(8).max(1000);
@@ -50,11 +50,26 @@ const respond = (data: unknown, status = 200) =>
     },
   });
 async function body<T>(req: Request, schema: z.ZodType<T>): Promise<T> {
-  return schema.parse(await req.json());
+  let payload: unknown;
+  try {
+    payload = await req.json();
+  } catch {
+    throw new AppError("INVALID_JSON", "Request body must be valid JSON.", 400);
+  }
+  return schema.parse(payload);
 }
 async function fileInput(req: Request) {
-  const form = await req.formData(),
-    file = form.get("file");
+  let form: FormData;
+  try {
+    form = await req.formData();
+  } catch {
+    throw new AppError(
+      "INVALID_FORM",
+      "Upload must be sent as multipart form data.",
+      400,
+    );
+  }
+  const file = form.get("file");
   demand(file instanceof File, "FILE_REQUIRED", "Choose a file.");
   demand(
     file.size <= 5 * 1024 * 1024,
@@ -111,15 +126,47 @@ async function getActor(rt: Runtime, req: Request): Promise<Actor | null> {
       }
     : null;
 }
+// Escapes the wildcards users could otherwise inject into a LIKE pattern, so a
+// search for "%" matches a literal percent sign instead of every row.
+const like = (s: string) => "%" + s.replace(/[\\%_]/g, (m) => "\\" + m) + "%";
+const safeHost = (value?: string) => {
+  try {
+    return new URL(value || "").host;
+  } catch {
+    return "";
+  }
+};
+// Behind a proxy or serverless platform the socket address is not the caller's,
+// so trust the forwarding headers the platform sets.
+const clientIp = (req: Request) =>
+  (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() ||
+  req.headers.get("x-real-ip") ||
+  "unknown";
+const isSecure = (req: Request, url: URL) =>
+  url.protocol === "https:" ||
+  req.headers.get("x-forwarded-proto") === "https" ||
+  process.env.VERCEL === "1" ||
+  process.env.COOKIE_SECURE === "1";
 async function limit(rt: Runtime, key: string, max: number) {
   const window = Math.floor(Date.now() / 60000),
-    rid = key + ":" + window;
-  await rt.db.batch([
-    sql(
-      "INSERT INTO rate_limit(id,count) VALUES(?,1) ON CONFLICT(id) DO UPDATE SET count=rate_limit.count+1",
-      rid,
-    ),
-  ]);
+    rid = key + ":" + window,
+    statements = [
+      sql(
+        "INSERT INTO rate_limit(id,count) VALUES(?,1) ON CONFLICT(id) DO UPDATE SET count=rate_limit.count+1",
+        rid,
+      ),
+    ];
+  // A counter is keyed by the minute it belongs to and is never read again once
+  // that minute passes, so drop the ones that can no longer apply rather than
+  // letting the table grow for the life of the deployment.
+  if (window % 20 === 0)
+    statements.push(
+      sql(
+        "DELETE FROM rate_limit WHERE split_part(id,':',-1) ~ '^[0-9]+$' AND split_part(id,':',-1)::int < ?",
+        window - 1,
+      ),
+    );
+  await rt.db.batch(statements);
   const r = await one(rt.db, "SELECT count FROM rate_limit WHERE id=?", [rid]);
   demand(
     r.count <= max,
@@ -136,9 +183,14 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
       method = req.method,
       write = !["GET", "HEAD"].includes(method);
     if (write) {
-      const origin = req.headers.get("origin");
+      // Compare hosts only: the browser forwards whatever scheme/port the user
+      // reached us on, which may differ from the canonical URL behind a proxy.
+      const originHost = safeHost(req.headers.get("origin") || undefined),
+        allowedHosts = [process.env.APP_URL, url.origin]
+          .map(safeHost)
+          .filter(Boolean);
       demand(
-        !origin || origin === url.origin,
+        !originHost || allowedHosts.includes(originHost),
         "CSRF_REJECTED",
         "Request origin does not match.",
         403,
@@ -163,6 +215,10 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
           portal: z.enum(["admin", "teacher"]).default("teacher"),
         }),
       );
+      // Limit both the source address (so one client cannot spray many
+      // usernames) and the account (so distributed guessing on a single
+      // username is still bounded).
+      await limit(rt, "login-ip:" + clientIp(req), 30);
       await limit(rt, "login:" + (await hash(input.username.toLowerCase())), 10);
       const u = await one(rt.db, "SELECT * FROM users WHERE LOWER(email)=?", [
         input.username.toLowerCase(),
@@ -193,6 +249,9 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
       );
       const token = uid() + uid();
       await rt.db.batch([
+        // Reap sessions that can no longer authenticate anyone so the table
+        // does not accumulate rows for the life of the deployment.
+        sql("DELETE FROM session WHERE expires_at < ?", now()),
         sql(
           "INSERT INTO session(id,user_id,expires_at) VALUES(?,?,?)",
           await hash(token),
@@ -204,7 +263,7 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
         headers: {
           "Content-Type": "application/json",
           "Cache-Control": "no-store",
-          "Set-Cookie": `classledger_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800${url.protocol === "https:" ? "; Secure" : ""}`,
+          "Set-Cookie": `classledger_session=${token}; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800${isSecure(req, url) ? "; Secure" : ""}`,
         },
       });
     }
@@ -296,7 +355,7 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
       staff(actor);
       if (method === "GET") {
         const page = Math.max(1, Number(url.searchParams.get("page") || 1)),
-          q = "%" + (url.searchParams.get("q") || "") + "%",
+          q = like(url.searchParams.get("q") || ""),
           params = [term, q, q, ...(section ? [section] : [])],
           where = `t.id=? AND (LOWER(s.full_name) LIKE LOWER(?) OR s.code LIKE ?) ${section ? "AND e.section_id=?" : ""}`,
           base =
@@ -685,7 +744,7 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
         ))
           await reconcile(rt.db, actor, term, sec.id);
         const status = url.searchParams.get("status") || "OPEN",
-          q = "%" + (url.searchParams.get("q") || "") + "%",
+          q = like(url.searchParams.get("q") || ""),
           r = url.searchParams.get("reason") || "";
         return respond(
           await rt.db.all(
@@ -1119,7 +1178,9 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
         );
         await rt.db.batch(statements);
         if (rt.enqueue) await rt.enqueue(bid);
-        else rt.waitUntil?.(runJob(rt, bid).catch(() => {}));
+        // Keep rendering after the response is sent so the batch completes even
+        // if the user navigates away from the tab that started it.
+        else rt.waitUntil?.(runJob(rt, bid, 45000).catch(() => {}));
         return respond({ id: bid });
       }
       const b = await one(rt.db, "SELECT * FROM report_batch WHERE id=?", [
@@ -1172,7 +1233,10 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
       }
       if (method === "POST" && action === "process") {
         if (rt.enqueue) await rt.enqueue(key);
-        else await processBatch(rt, key);
+        // Drain as many sections as the request budget allows rather than a
+        // single section, so a batch finishes promptly instead of only while
+        // the browser tab keeps polling.
+        else await runJob(rt, key, 45000);
         return respond({ ok: true });
       }
       if (method === "POST" && action === "cancel") {
@@ -1181,14 +1245,26 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
           "JOB_RUNNING",
           "Only queued or failed jobs can be cancelled.",
         );
+        const objects = await rt.db.all(
+          "SELECT storage_key FROM report_file WHERE batch_id=?",
+          [key],
+        );
         await rt.db.batch([
           ...guard(
             "EXISTS(SELECT 1 FROM report_batch WHERE id=? AND status IN('QUEUED','FAILED'))",
             key,
           ),
           sql("UPDATE report_batch SET status='CANCELLED' WHERE id=?", key),
+          sql("DELETE FROM report_file WHERE batch_id=?", key),
           audit(actor, "REPORT_CANCELLED", "report_batch", key),
         ]);
+        // A cancelled batch will never be downloaded, so reclaim the section
+        // PDFs and ZIP it had already written instead of leaving them orphaned
+        // in storage forever.
+        if (rt.storage.delete) {
+          for (const o of objects) await rt.storage.delete(o.storage_key);
+          if (b.zip_key) await rt.storage.delete(b.zip_key);
+        }
         return respond({ ok: true });
       }
       return respond({
@@ -1441,7 +1517,7 @@ export async function handle(rt: Runtime, req: Request): Promise<Response> {
     }
     if (route === "audit") {
       staff(actor);
-      const q = "%" + (url.searchParams.get("q") || "") + "%",
+      const q = like(url.searchParams.get("q") || ""),
         page = Math.max(1, Number(url.searchParams.get("page") || 1));
       return respond(
         await rt.db.all(

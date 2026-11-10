@@ -21,10 +21,23 @@ export const sampleName = (n: number, s: string) =>
           ? "Mekdes Alemayehu Gebremariam Tesfaye Bekele"
           : "Student " + s + " " + String(n).padStart(2, "0");
 export const SUBJECTS = [
-  { code: "MATH", subject: "Mathematics", username: "math", password: "math-ClassLedger-2026" },
-  { code: "ENG", subject: "English", username: "english", password: "english-ClassLedger-2026" },
-  { code: "SCI", subject: "Science", username: "science", password: "science-ClassLedger-2026" },
+  { code: "MATH", subject: "Mathematics", username: "math" },
+  { code: "ENG", subject: "English", username: "english" },
+  { code: "SCI", subject: "Science", username: "science" },
 ];
+// Teacher credentials are read from the environment rather than committed, so
+// the default accounts shipped for a brand-new database are not published in
+// the source (or the repository it lives in).
+const teacherPassword = (code: string) => {
+  const value = process.env["TEACHER_" + code + "_PASSWORD"];
+  if (!value || value.length < 8)
+    throw new Error(
+      "Set TEACHER_" +
+        code +
+        "_PASSWORD (at least 8 characters) before seeding a new school.",
+    );
+  return value;
+};
 export async function setup(
   rt: Runtime,
   owner: Actor,
@@ -112,7 +125,7 @@ export async function setup(
         : subject.username,
       teacherHash = sample
         ? passwordHash || null
-        : await bcrypt.hash(subject.password, 12);
+        : await bcrypt.hash(teacherPassword(subject.code), 12);
     s.push(
       sql(
         "INSERT INTO users(id,name,email,password_hash,roles,active,created_at) VALUES(?,?,?,?,?,1,?)",

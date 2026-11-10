@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "engines": {
-    "node": ">=22.13.0"
+    "node": "22.x"
   },
   "scripts": {
     "install:ci": "bash scripts/install-pnpm.sh",
@@ -20,6 +20,7 @@
     "format": "prettier --write app components lib/server lib/domain tests scripts/classledger/*.ts docs README.md",
     "db:migrate": "node --env-file-if-exists=.env --import tsx scripts/classledger/migrate.ts",
     "db:seed": "node --env-file-if-exists=.env --import tsx scripts/classledger/seed.ts",
+    "db:release": "npm run db:migrate && npm run db:seed",
     "worker": "node --env-file-if-exists=.env --import tsx scripts/classledger/worker.ts",
     "account:reset-password": "node --env-file-if-exists=.env --import tsx scripts/classledger/reset-password.ts",
     "samples": "node --import tsx scripts/classledger/sample-files.ts",

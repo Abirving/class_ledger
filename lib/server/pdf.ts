@@ -128,11 +128,25 @@ export async function render(
         : await doc.embedJpg(background)
       : null;
   const p = parse(run.policy);
+  // Fetch every student's marks in one round trip instead of one query per
+  // student, which previously made rendering latency scale with class size.
+  const marksByStudent = new Map<string, any[]>();
+  if (students.length) {
+    const ids = students.map((s) => s.id),
+      rows = await rt.db.all(
+        "SELECT * FROM result_mark WHERE student_result_id IN (" +
+          ids.map(() => "?").join(",") +
+          ") ORDER BY subject_name",
+        ids,
+      );
+    for (const row of rows) {
+      const list = marksByStudent.get(row.student_result_id);
+      if (list) list.push(row);
+      else marksByStudent.set(row.student_result_id, [row]);
+    }
+  }
   for (const student of students) {
-    const marks = await rt.db.all(
-      "SELECT * FROM result_mark WHERE student_result_id=? ORDER BY subject_name",
-      [student.id],
-    );
+    const marks = marksByStudent.get(student.id) || [];
     demand(
       !fieldErrors(
         fields,
